@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+		<link rel="stylesheet" href="css/style.css" type="text/css"  />
+		<link rel="stylesheet" href="css/iconfont.css" type="text/css"  />
+		<title>登录界面</title>
+	</head>
+	<body>
+	
+	
+		<div id="bigBox">
+			<h1>LOGIN</h1>
+		
+			<div class="inputBox">
+				<div class="inputText">
+					<span class="iconfont icon-nickname"></span>
+					<input type="text"  id="phone"  maxlength="11" name='phoneNumber' onkeyup="this.value=this.value.replace(/\D/g,'')" onafterpaste="this.value=this.value.replace(/\D/g,'')" placeholder="PhoneNumber" />
+				</div>
+				<div class="inputText">
+					<span class="iconfont icon-visible"></span>
+					<input type="password" id='password' placeholder="Password" />
+				</div>
+			</div>
+			<input class="loginButton" type="submit" value="登录" onclick="doLogin()"/>
+	
+			<input class="loginButton"  type="button" value="注册" onclick="fnRegist()" />
+		
+		</div>
+
+		<script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js"></script>
+	
+		<script src="//cdn.bootcdn.net/ajax/libs/jquery/3.4.1/jquery.js"></script>
+<script>
+
+	function doLogin(){
+		var phone  = $('#phone').val();
+		var password = $('#password').val();
+		if(phone==""){
+			alert("请输入手机号");
+		}
+		else if(password==""){
+			alert("请输入密码");	
+		}
+		else{
+			$.ajax({
+			url:"/doLogin",
+			type:'post',
+			dataType: "json",
+            data: { phoneNumber:phone,password:password },
+			success:function(result){
+				console.log(result);
+				if(result){
+					alert("登录成功!");
+					location.href='/';
+				}
+				else{
+					alert("用户名或密码不正确!");
+
+				}
+			}
+		});
+
+		}
+
+	}
+
+	function fnRegist(){
+		console.log("regist!");
+		location.href = "/regist.html";
+	}
+
+
+</script>
+
+	</body>
+</html>

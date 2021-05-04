@@ -1,0 +1,499 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>
+        <%=roomdata.roomname%>
+    </title>
+    <style>
+        #user-list>li {
+            font-size: 16px;
+        }
+
+        #wenzi {
+            position: relative;
+            float: left;
+            top: 100px;
+            color: #f00;
+            width: 320px;
+            height: 30px;
+            text-align: center;
+            z-index: 1;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .left {
+            text-align: left;
+            margin-left: 5%;
+        }
+
+        .right {
+            text-align: right;
+            margin-right: 20%;
+        }
+
+
+        body {
+            font: 14px Helvetica, Arial;
+        }
+
+        form {
+            background: #000;
+            padding: 3px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        form input {
+            border: 0;
+            padding: 10px;
+            width: 90%;
+            margin-right: 0.5%;
+        }
+
+        form button {
+            width: 9%;
+            background: rgb(130, 224, 255);
+            border: none;
+            padding: 10px;
+        }
+
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #messages li {
+            padding: 5px 10px;
+        }
+
+        #messages li:nth-child(odd) {
+            background: #eee;
+        }
+    </style>
+</head>
+
+<body>
+    <h2 id="room-name" class="center">房间名称:<%=roomdata.roomname%>
+    </h2>
+    <div>
+        <p class="right">您好，用户<%=username%>
+        </p>
+    </div>
+    <div class="center">
+        <p>创建时间:<%=roomdata.newtime%>
+        </p>
+
+    </div>
+    <div id="user">
+        <p class="center">发起者:{{data[0].name}}-----房间住户:{{data[1].name}}
+        </p>
+    </div>
+
+    <div class="right">
+        <button>退出对讲房间</button>
+    </div>
+    <div>
+        <h4>在线的用户列表</h4>
+        <ul id="user-list">
+            <li id='myself'>
+                <%=username%>
+            </li>
+        </ul>
+    </div>
+    <div class="center">
+        <button onclick="InitCamera()">连接到对讲</button>
+    </div>
+    <div id="videos" style="width:100%; height:200px; z-index:1">
+        <h4>视频列表</h4>
+    </div>
+    <br>
+    <div id='message-list'>
+        <h4>消息版</h4>
+        <ul id="messages"></ul>
+    </div>
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="//cdn.bootcdn.net/ajax/libs/socket.io/3.0.4/socket.io.js"></script>
+    <script src="//cdn.bootcdn.net/ajax/libs/jquery/3.4.1/jquery.js"></script>
+
+
+
+    <script>
+
+
+        var isOpen = false;
+        //STUN,TURN服务器配置参数
+        const iceServer = {
+            iceServers: [
+                //urls: ["stun:ss-turn1.xirsys.com"] }, 
+                //{ username: "CEqIDkX5f51sbm7-pXxJVXePoMk_WB7w2J5eu0Bd00YpiONHlLHrwSb7hRMDDrqGAAAAAF_OT9V0dWR1d2Vi", 
+                //credential: "446118be-38a4-11eb-9ece-0242ac140004", 
+                //urls: ["turn:ss-turn1.xirsys.com:80?transport=udp", "turn:ss-turn1.xirsys.com:3478?transport=udp"]  }
+            ]
+        };
+        //封装一部分函数
+        var constrains = {
+            video: true,
+            audio: true
+        };
+
+        var pc = [];
+        var localStream = null;
+
+        var idlist = ['<%=roomdata.sponsor%>', '<%=roomdata.receiver%>'];
+        var localVideoElm;
+
+        var username = '<%=username%>';
+
+        var userId = '<%=id%>';
+
+        console.log('user id ' + userId);
+        var socket = io();
+
+        var onLineUser = {};
+        initUser();
+        function initUser() {
+            console.log(idlist);
+            $.ajax({
+                url: "/getUserName",
+                method: 'get',
+                data: { list: idlist },
+                success: function (result) {
+                    if (result.result) {
+                        new Vue({
+                            el: '#user',
+                            data: result
+                        })
+
+
+                    }
+                }
+            })
+
+        }
+
+
+
+        socket.on('connect', () => {
+            console.log("connect " + socket.id);
+            socket.emit('join room', {
+                sender: socket.id,
+                room: '<%=roomdata.csv_id%>',
+                username: username
+            })
+
+            socket.on('join room', (data) => {
+                console.log("join " + data.sender + " name " + data.username);
+                var date = new Date();
+                var msg = date + "    用户" + data.username + "进入了房间！";
+                $('#messages').append($('<li>').text(msg));
+                addUser(data.username, data.sender);
+                socket.emit('add user', {
+                    sender: socket.id,
+                    username: username,
+                    receiver: data.sender
+                })
+                if (isOpen)
+                    startCall(data.sender, true);
+
+            })
+
+            socket.on('add user', (data) => {
+                addUser(data.username, data.sender);
+            })
+
+            socket.on('user disconnected', (socket_id) => {
+                var Uarry = $('#user-list li');
+                for (i = 0; i < Uarry.length; i++) {
+                    var v = Uarry.eq(i).attr('user-id');
+                    console.log("删 " + v);
+                    //StartCall(v,true);
+                    if (onLineUser[v] == socket_id) {
+                        var date = new Date();
+                        var msg = date + "    用户" + v + "离开了房间！";
+                        $('#messages').append($('<li>').text(msg));
+                        delete (onLineUser[v]);
+                        $('#user-list li[user-id="' + v + '"]').remove();
+                        var bd = "#" + v + "-video";
+                        console.log("delete  id " + bd);
+                        $(bd).remove();
+                        break;
+                    }
+                }
+            })
+
+
+            //监听发送的sdp事件
+            socket.on('sdp', (data) => {
+                //如果时offer类型的sdp
+                console.log(data);
+                if (data.description.type === 'offer') {
+                    //那么被呼叫者需要开启RTC的一套流程，同时不需要createOffer，所以第二个参数为false
+                    console.log("is a offer");
+                    startCall(data.sender, false);
+                    //把发送者(offer)的描述，存储在接收者的remoteDesc中。
+                    let desc = new RTCSessionDescription(data.description);
+                    //按1-13流程走的
+                    pc[data.sender].setRemoteDescription(desc).then(() => {
+
+                        pc[data.sender].createAnswer().then((answer) => {
+                            return pc[data.sender].setLocalDescription(answer);
+                        }).then(() => {
+                            socket.emit('sdp', {
+                                type: 'video-answer',
+                                description: pc[data.sender].localDescription,
+                                to: data.sender,
+                                sender: socket.id
+                            });
+
+                        }).catch();//catch error function empty
+
+                    })
+                } else if (data.description.type === 'answer') {
+                    //如果使应答类消息（那么接收到这个事件的是呼叫者）
+                    console.log("is  an  answer");
+                    //StartCall(socket.id,false);
+                    let desc = new RTCSessionDescription(data.description);
+                    pc[data.sender].setRemoteDescription(desc);
+                }
+            })
+
+            //如果是ice candidates的协商信息
+            socket.on('ice candidates', (data) => {
+                console.log('ice candidate: ' + data.candidate);
+                //{ candidate: candidate, to: partnerName, sender: socketID }
+                //如果ice candidate非空（当candidate为空时，那么本次协商流程到此结束了）
+                if (data.candidate) {
+                    var candidate = new RTCIceCandidate(data.candidate);
+                    //讲对方发来的协商信息保存
+                    pc[data.sender].addIceCandidate(candidate).catch();//catch err function empty
+                }
+            })
+
+        })
+
+
+        function addUser(name, sender) {
+
+            console.log("add " + name);
+
+            var add = true;
+            var Uarry = $('#user-list li');
+            for (i = 0; i < Uarry.length; i++) {
+                var v = Uarry.eq(i).text();
+                console.log("pc " + i + "   " + v);
+                //StartCall(v,true);
+                if (v == username || v == name) {
+                    add = false;
+                }
+            }
+            onLineUser[name] = sender;
+            if (name == username)
+                add = false;
+            // console.log(onLineUser);
+            if (add) {
+                let li = $('<li></li>').text(name).attr('user-id', name);
+
+                $('#user-list').append(li);
+            }
+
+
+
+        }
+
+
+        function getUserMedia(constrains, success, error) {
+            if (navigator.mediaDevices.getUserMedia) {
+                //最新标准API
+                promise = navigator.mediaDevices.getUserMedia(constrains).then(success).catch(error);
+            } else if (navigator.webkitGetUserMedia) {
+                //webkit内核浏览器
+                promise = navigator.webkitGetUserMedia(constrains).then(success).catch(error);
+            } else if (navigator.mozGetUserMedia) {
+                //Firefox浏览器
+                promise = navagator.mozGetUserMedia(constrains).then(success).catch(error);
+            } else if (navigator.getUserMedia) {
+                //旧版API
+                promise = navigator.getUserMedia(constrains).then(success).catch(error);
+            }
+        }
+
+        function canGetUserMediaUse() {
+            return !!(navigator.mediaDevices.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia);
+        }
+
+
+        function InitCamera() {
+
+            if (userId == idlist[1]) {
+                constrains.video = false;
+            }
+
+
+            if (canGetUserMediaUse()) {
+                getUserMedia(constrains, (stream) => {
+                    if (!document.getElementById(`${username}-video`)) {
+                        var newVideo = document.createElement('video');;
+                        // if (constrains.video)
+                        //     newVideo = document.createElement('video');
+                        // else
+                        //     newVideo = document.createElement('audio');
+
+                        newVideo.id = `${username}-video`;
+                        newVideo.autoplay = true;
+                        newVideo.controls = true;
+                        newVideo.muted = 'muted';
+                        newVideo.title = username;
+                        document.getElementById('videos').appendChild(newVideo);
+                        localVideoElm = newVideo;
+                    }
+                    localStream = stream;
+                    localVideoElm.srcObject = stream;
+                    $(localVideoElm).width(300);
+                    isOpen = true;
+                    callVideos();
+
+                }, (err) => {
+                    console.log('访问用户媒体失败: ', err.name, err.message);
+                    alert("访问用户媒体失败!\n" + "错误名称:" + err.name + "\n错误信息：" + err.message);
+                });
+            } else {
+                alert('您的浏览器不兼容');
+            }
+
+        }
+
+        function callVideos() {
+            // for (i = 0; i < onLineUser.length; i++) {
+            //     if (onLineUser[i] != null && onLineUser[i] != socket.id)
+            //         startCall(onLineUser[i].true);
+            // }
+
+            console.log(pc);
+            // if(isOpen){
+            //     console.log(pc);
+            //     for(i=0;i<pc.length;i++){
+            //         localStream.getTracks().forEach((track) => {
+            //         pc[i].addTrack(track, localStream);//should trigger negotiationneeded event
+            //     });
+            //     }
+            //     console.log("不用执行下面的");
+            //     return ;
+            // }
+            for (var key in onLineUser) {
+                console.log("键:", key);
+                console.log("值:", onLineUser[key]);
+                if (onLineUser[key] != null && onLineUser[key] != socket.id)
+                    startCall(onLineUser[key], true);
+            }
+
+        }
+
+        function startCall(parterName, createOffer) {
+
+           // pc[parterName] = new RTCPeerConnection(iceServer);
+            pc[parterName] = new RTCPeerConnection(null );
+            console.log("pc " + parterName + "   startcall    " + createOffer);
+            //如果已经有本地流，那么直接获取Tracks并调用addTrack添加到RTC对象中。
+
+            if (localStream) {
+                console.log("get stream    ")
+                localStream.getTracks().forEach((track) => {
+                    pc[parterName].addTrack(track, localStream);//should trigger negotiationneeded event
+                });
+
+            } else {
+                // console.log("不可能执行这里了吧");
+                // //否则需要重新启动摄像头并获取
+                // if (canGetUserMediaUse()) {
+                //     getUserMedia(constrains, function (stream) {
+                //         localStream = stream;
+
+                //         localVideoElm.srcObject = stream;
+                //         $(localVideoElm).width(600);
+                //         startCall(parterName, createOffer);
+                //         return;
+                //     }, function (error) {
+                //         console.log("访问用户媒体设备失败：", error.name, error.message);
+                //     })
+                // } else { alert('您的浏览器不兼容'); }
+
+            }
+
+            //如果是呼叫方,那么需要createOffer请求
+            if (createOffer) {
+                console.log("create offer " + parterName);
+                //每当WebRTC基础结构需要你重新启动会话协商过程时，都会调用此函数。它的工作是创建和发送一个请求，给被叫方，要求它与我们联系。
+                pc[parterName].onnegotiationneeded = () => {
+                    //https://developer.mozilla.org/zh-CN/docs/Web/API/RTCPeerConnection/createOffer
+                    console.log("onnegotiationneeded");
+                    pc[parterName].createOffer().then((offer) => {
+                        return pc[parterName].setLocalDescription(offer);
+                    }).then(() => {
+                        //把发起者的描述信息通过Signal Server发送到接收者
+                        socket.emit('sdp', {
+                            type: 'video-offer',
+                            description: pc[parterName].localDescription,
+                            to: parterName,
+                            sender: socket.id
+                        });
+                    })
+                };
+            }
+
+            //当需要你通过信令服务器将一个ICE候选发送给另一个对等端时，本地ICE层将会调用你的 icecandidate 事件处理程序。有关更多信息，请参阅Sending ICE candidates 以查看此示例的代码。
+            pc[parterName].onicecandidate = ({ candidate }) => {
+                console.log("onicecandidate");
+                socket.emit('ice candidates', {
+                    candidate: candidate,
+                    to: parterName,
+                    sender: socket.id
+                });
+            };
+
+            //当向连接中添加磁道时，track 事件的此处理程序由本地WebRTC层调用。例如，可以将传入媒体连接到元素以显示它。详见 Receiving new streams 。
+            pc[parterName].ontrack = (ev) => {
+                console.log(parterName + " onTrack");
+                let str = ev.streams[0];
+                console.log(str);
+                var u_name = getNameBysocket(parterName);
+                if (document.getElementById(`${u_name}-video`)) {
+                   // document.getElementById(`${u_name}-video`).srcObject = str;
+                   document.getElementById(`${u_name}-video`).src = str;
+                    console.log("不需要添加" + u_name);
+                } else {
+                    let newVideo = document.createElement('video');
+                    newVideo.id = `${u_name}-video`;
+                    newVideo.autoplay = true;
+                    newVideo.controls = true;
+                    //newVideo.className = 'remote-video';
+                    newVideo.srcObject = str;
+                    console.log("需要添加" + u_name);
+                    document.getElementById('videos').appendChild(newVideo);
+                }
+            }
+
+
+
+        }
+
+        function getNameBysocket(s) {
+            for (var key in onLineUser) {
+                if (onLineUser[key] == s)
+                    return key;
+            }
+            return 'undefined';
+        }
+
+    </script>
+</body>
+
+
+</html>

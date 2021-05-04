@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人主页</title>
+    <style>
+        h2.right {
+            text-align: right;
+            margin-right: 20%;
+            font-size: 20px;
+        }
+
+        h3.left {
+            text-align: left;
+            margin-left: 5%;
+            font-size: 20px;
+        }
+
+        .center {
+            text-align: center;
+
+        }
+
+        select.left {
+            margin-left: 10px;
+        }
+
+        .right {
+            text-align: right;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 class='center'>单向可视对讲系统</h1>
+    <h2 class="right">欢迎您，用户<%=username%> <button onclick="logout()">登出</button></h2>
+    <!-- <form action="/logout" method="POST"><input type="submit" value="登出" /></form> -->
+
+    <br>
+    <p id="location">当前定位 <button onclick="getLocation()">刷新定位</button></p>
+
+    <br>
+    <br>
+    <h3>可以对讲的房间</h3>
+    <div class='center' id="selectors">
+        <select name="community" id="community" onchange="changeCommunity()">
+            <option disabled="disabled" value="null">请选择</option>
+
+        </select><span>小区</span>
+        <select name="term" id="term" class="left" onchange="changeTerm()">
+            <option disabled="disabled" value="null">请选择</option>
+
+        </select><span>幢</span>
+        <select name="floor" id="floor" class="left" onchange="changeFloor()">
+            <option disabled="disabled" value="null">请选择</option>
+
+        </select><span>楼</span>
+        <select name="room" id="room" class="left">
+            <option disabled="disabled" value="null">请选择</option>
+
+        </select><span>房</span>
+    </div>
+    <br>
+    <div class="center">
+        <button onclick="callRoom()">发起对讲</button>
+
+    </div>
+
+    <br>
+    <!-- <h3 class="left">在线的用户列表</h3>
+    <ul id="user-list">
+
+    </ul> -->
+    <div id='vsc'>
+        <h3>该账户发起的对讲</h3>
+        <div>
+            <ul id='sponsor-list'>
+
+                <li v-for='item in data' :id='item.csv_id' v-if="item.sponsor=='<%=id%>'">
+
+                    {{item.newtime}}&nbsp;&nbsp;&nbsp;&nbsp;{{item.roomname}}
+                    <button :name='item.csv_id' onclick="comeRoom(name)">进入对讲房间</button> <button :name='item.csv_id'
+                        onclick="closeRoom(name)">关闭对讲房间</button>
+
+                </li>
+
+            </ul>
+        </div>
+        <h3>该账户收到的对讲</h3>
+        <div>
+            <ul id='receiver-list'>
+                <li v-for='item in data' :id='item.csv_id' v-if="item.receiver=='<%=id%>'">
+                    {{item.newtime}}&nbsp;&nbsp;&nbsp;&nbsp;{{item.roomname}}
+                    <button :name='item.csv_id' onclick="comeRoom(name)">进入对讲房间</button> <button :name='item.csv_id'
+                        onclick="closeRoom(name)">关闭对讲房间</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <h3>当前账户已经绑定的房间</h3>
+    <ul id='room-list'></ul>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="//cdn.bootcdn.net/ajax/libs/socket.io/3.0.4/socket.io.js"></script>
+    <script src="//cdn.bootcdn.net/ajax/libs/jquery/3.4.1/jquery.js"></script>
+    <script>
+        var socket = io();
+        var name = '<%=username%>';
+        var id = '<%=id%>'
+        var onLineUser = [];
+
+        socket.on('connect', () => {
+            console.log("connect");
+
+            socket.emit("user login", {
+                sender: socket.id,
+                username: name
+            })
+
+            socket.emit('get user info', {
+                sender: socket.id,
+                userId: id
+            });
+
+
+            // socket.on('new user login', (data) => {
+            //     console.log("new user login");
+
+            //     var add = true;
+            //     var Uarry = $('#user-list li');
+            //     for (i = 0; i < Uarry.length; i++) {
+            //         var v = Uarry.eq(i).text();
+            //         console.log("pc " + i + "   " + v);
+            //         //StartCall(v,true);
+            //         if (v == data.username || v == name) {
+            //             add = false;
+            //         }
+            //     }
+            //     onLineUser[data.username] = data.sender;
+            //     if (name == data.username)
+            //         add = false;
+            //     // console.log(onLineUser);
+            //     if (add) {
+            //         addUser(data.username);
+            //     }
+            //     socket.emit('online user', {
+            //         receiver: data.sender,
+            //         sender: socket.id,
+            //         username: name
+            //     })
+            // })
+
+            // socket.on('user disconnected', (socket_id) => {
+            //     var Uarry = $('#user-list li');
+            //     for (i = 0; i < Uarry.length; i++) {
+            //         var v = Uarry.eq(i).attr('user-id');
+            //         console.log("删 " + v);
+            //         //StartCall(v,true);
+            //         if (onLineUser[v] == socket_id) {
+            //             $('#user-list li[user-id="' + v + '"]').remove();
+            //             break;
+            //         }
+            //     }
+            // })
+
+            // socket.on('online user', (data) => {
+            //     console.log('online user');
+            //     if (data.username == name)
+            //         return;
+            //     onLineUser[data.username] = data.sender;
+            //     addUser(data.username);
+            // })
+
+
+            //获取用户绑定房间信息
+            socket.on('userinfo result', (data) => {
+                console.log(data.result)
+                // var vm = new Vue({
+                //     el: '#app',
+                //     data: data
+                // })
+                $('#room-list').empty();
+                for (i = 0; i < data.result.length; i++) {
+                    var str = data.result[i].c_name + " " + data.result[i].term + "幢" + data.result[i].floor + "楼" + data.result[i].room + "房";
+                    addRoom(str);
+                }
+            })
+
+            //邀请信息
+            socket.on('invitation video', (data) => {
+                console.log("invitation");
+                var r = window.confirm("用户" + data.sender + "向你发出了对讲邀请！");
+                if (r) {
+                    location.href = '/room?csvid=' + data.csvid;
+                }
+
+            });
+        })
+
+
+        // //向某个用户发起对讲
+        // function communicate(receiver) {
+
+
+        // }
+
+
+        function addRoom(str) {
+            let li = $('<li></li>').text(str).attr('room-id', str);
+            $('#room-list').append(li);
+        }
+
+        function addUser(name) {
+            console.log("add " + name);
+            let li = $('<li></li>').text(name).attr('user-id', name);
+
+            $('#user-list').append(li);
+
+            // 同时创建一个按钮
+            //  let button = $('<button class="call">发起对讲</button>');
+            // button.appendTo(li);
+            // //监听按钮的点击事件, 这是个demo 需要添加很多东西，比如不能重复拨打已经连接的用户
+            // $(button).click(function () {
+            //     var v = $(this).parent().attr('user-id')
+            //     communicate(v);
+            //     //   console.log($(this).parent().attr('user-id'));
+            //     //点击时，开启对该用户的通话
+            //     //  StartCall($(this).parent().attr('user-id'), true);
+            // });
+
+        }
+
+
+        var output = document.getElementById("location");
+
+        getLocation();
+        function getLocation() {
+            console.log('获取定位');
+            //请求可以对讲房间数据
+            $.ajax({
+                url: '/getRoomData',
+                method: 'get',
+                dataType: 'json',
+                data: { name: "community" },
+                success: function (result) {
+                    console.log(result);
+                    if (result == "") {
+                        alert("暂时没有可以对讲的房间数据!")
+                    }
+                    else {
+                        $('#community').empty();
+                        for (i = 0; i < result.length; i++) {
+                            let opt = $('<option></option>').text(result[i].c_name).attr('value', result[i].c_id);
+
+                            $('#community').append(opt);
+                            if (i == 0) {
+                                changeCommunity();
+                            }
+                        }
+                    }
+                }
+            })
+
+
+           
+                var options = {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 5000
+                }
+                if (navigator.geolocation) {
+                    //浏览器支持geolocation
+                    // navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+                   console.log("设备定位信息");
+                    navigator.geolocation.getCurrentPosition((success, err,options) => {
+
+                        if (success) {
+                            console.log(success);
+                            showPosition(success);
+                        }
+                        else {
+                            console.log(err);
+                            output.innerHTML = "Geolocation is not supported by this browser.";
+                        }
+
+                    });
+                } else {
+                    //浏览器不支持geolocation
+                    alert('您的浏览器不支持地理位置定位');
+                }
+            
+           
+
+            // if (navigator.geolocation) {
+            //     console.log("ddd");
+
+
+            //     navigator.geolocation.getCurrentPosition((success, err) => {
+
+            //         if (success) {
+            //             console.log(success);
+            //             showPosition(success);
+            //         }
+            //         else {
+            //             console.log(err);
+            //             output.innerHTML = "Geolocation is not supported by this browser.";
+            //         }
+
+            //     });
+            // }
+            // else { output.innerHTML = "Geolocation is not supported by this browser."; }
+        }
+
+        function showPosition(position) {
+            console.log("点击了" + position);
+            console.log('latitude ' + position.coords.latitude + " longtitude " + position.coords.longitude);
+            // $.getJSON('http://api.map.baidu.com/reverse_geocoding/v3/?ak=ZvE4XdhgrYAaEW6PryVokIGEVf6nxYKM&output=json&coordtype=wgs84ll&location='+position.coords.latitude+','+position.coords.longitude,function(json){
+            //     console.log(json);
+            //     console.log(json);
+            // })
+            //http://api.map.baidu.com/reverse_geocoding/v3/?ak=ZvE4XdhgrYAaEW6PryVokIGEVf6nxYKM&output=json&coordtype=bd09ll&location=23.147315199999998,113.3412352
+            $.ajax({
+                url: 'https://api.map.baidu.com/reverse_geocoding/v3/?ak=ZvE4XdhgrYAaEW6PryVokIGEVf6nxYKM&output=json&coordtype=wgs84ll&location=' + position.coords.latitude + ',' + position.coords.longitude,
+                //url:'/getMap',
+                method: 'get',
+                dataType: 'jsonp',
+                //data: { latitude: position.coords.latitude, longitude: position.coords.longitude },
+                success: (result) => {
+                    console.log('map result');
+                    console.log(result);
+                    output.innerHTML = result.result.formatted_address;
+                }
+            })
+        }
+
+        //登出函数
+        function logout() {
+            console.log("登出");
+            $.ajax({
+                url: '/logout',
+                method: 'post',
+                success: function (result) {
+                    if (result)
+                        location.href = '/';
+                }
+            })
+        }
+
+
+
+        function changeCommunity() {
+            var c_id = $('#community').val();
+
+            $.ajax({
+                url: '/getRoomData',
+                method: 'get',
+                dataType: "json",
+                data: { c_id: c_id, name: 'term' },
+                success: function (result) {
+                    console.log(result);
+                    if (result == "") {
+                        alert("暂时没有可以对讲的房间数据!")
+                    }
+                    else {
+                        $('#term').empty();
+                        for (i = 0; i < result.length; i++) {
+                            let opt = $('<option></option>').text(result[i].term).attr('value', result[i].term);
+                            $('#term').append(opt);
+                            if (i == 0) {
+                                changeTerm();
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+        function changeTerm(term) {
+            var c_id = $('#community').val();
+            var term = $('#term').val();
+            console.log('term' + term);
+            $.ajax({
+                url: '/getRoomData',
+                method: 'get',
+                dataType: "json",
+                data: { name: 'floor', term: term, c_id: c_id },
+                success: function (result) {
+                    console.log(result);
+                    if (result == "") {
+                        alert("暂时没有可以对讲的房间数据!")
+                    }
+                    else {
+                        $('#floor').empty();
+                        for (i = 0; i < result.length; i++) {
+                            let opt = $('<option></option>').text(result[i].floor).attr('value', result[i].floor);
+                            $('#floor').append(opt);
+                            if (i == 0) {
+                                changeFloor();
+                            }
+                        }
+                    }
+                }
+            })
+
+        }
+
+        function changeFloor() {
+            var c_id = $('#community').val();
+            var term = $('#term').val();
+            var floor = $('#floor').val();
+            $.ajax({
+                url: '/getRoomData',
+                method: 'get',
+                dataType: "json",
+                data: { term: term, c_id: c_id, floor: floor, name: 'room' },
+                success: function (result) {
+                    console.log(result);
+                    if (result == "") {
+                        alert("暂时没有可以对讲的房间数据!")
+                    }
+                    else {
+                        $('#room').empty();
+                        for (i = 0; i < result.length; i++) {
+                            let opt = $('<option></option>').text(result[i].room).attr('value', result[i].a_id);
+                            $('#room').append(opt);
+                        }
+                    }
+                }
+            })
+        }
+        //  console.log(rooms[])
+
+        function callRoom() {
+            var roomId = $('#room').val();
+
+            if (roomId == null)
+                alert("没有可以对讲的房间");
+            else {
+                var roomName = $('#community option:selected').text() + $('#term').val() + '幢' + $('#floor').val() + '楼' + $('#room option:selected').text() + '房';
+                console.log(roomName);
+                $.ajax({
+                    url: '/createRoom',
+                    method: 'get',
+                    data: { roomId: roomId, sponsor: id, roomName: roomName },
+                    success: function (result) {
+                        console.log(result);
+                        if (!result.result)
+                            alert(result.msg);
+                        else {
+                            console.log("create vcs " + result.csvid);
+                            //  location.href = '/room?sponser=' + id + '&&receiver=' + result.receiver + '&&roomId=' + roomId;
+
+                            socket.emit('invitation video', {
+                                sender: name,
+                                receiver: result.receiver,
+                                csvid: result.csvid
+                            });
+
+                            location.href = '/room?csvid=' + result.csvid;
+
+
+                        }
+                    }
+
+                })
+            }
+
+
+        }
+
+        getVCS();
+        var vcsVue = new Vue({
+            el: '#vsc',
+            data: { data: '' }
+        })
+        function getVCS() {
+
+            $.ajax({
+                url: '/getVCS',
+                method: 'get',
+                dataType: 'json',
+                data: { userId: id },
+                success: function (result) {
+                    console.log(result);
+                    if (!result.result)
+                        return;
+                    vcsVue.data = result.data;
+
+
+
+                    //console.log(data[0].newtime);
+
+                }
+            })
+        }
+
+
+
+        function comeRoom(csvid) {
+            console.log("csv " + csvid);
+            location.href = '/room?csvid=' + csvid;
+        }
+
+
+        function closeRoom(csvid) {
+            var r = window.confirm("确认关闭该对讲房间吗？");
+            //alert(r);
+            if (r) {
+                console.log("关闭成功");
+                $.ajax({
+                    url: '/closeRoom',
+                    method: 'get',
+                    data: { csvid: csvid },
+                    success: function (result) {
+                        console.log(result);
+                        if (result) {
+                            getVCS();
+                        }
+                    }
+                })
+            }
+
+        }
+    </script>
+
+</body>
+
+</html>

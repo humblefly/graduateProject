@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+		<link rel="stylesheet" href="css/style.css" type="text/css"  />
+		<link rel="stylesheet" href="css/iconfont.css" type="text/css"  />
+		<title>注册界面</title>
+	</head>
+	<body>
+	
+		<div id="bigBox">
+			<h1>REGIST</h1>
+			
+                <p><input type="text" maxlength="11" id="phone" onkeyup="this.value=this.value.replace(/\D/g,'')" onafterpaste="this.value=this.value.replace(/\D/g,'')" placeholder="手机号" /></p>
+                <p><input type="text" maxlength="20" id="name" placeholder="用户名"/></p>
+                <p><input type="password" id="password" maxlength="16" placeholder="密码"/></p>
+                <p><input type="password" id="password2" maxlength="16" placeholder="再次输入密码"/></p>
+         
+			<input class="loginButton" type="button" value="注册" onclick="doRegist()"/>
+			<input class="loginButton" type="button" value="回到登录页面" onclick="goLogin()"/>
+		</div>
+
+	<div>
+		
+	
+		<script src="//cdn.bootcdn.net/ajax/libs/jquery/3.4.1/jquery.js"></script>
+		<script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js"></script>
+<script>
+
+	function goLogin(){
+		location.href="/";
+	}
+
+  function doRegist(){
+	  	var phone = $('#phone').val();
+		var name = $('#name').val();
+		var p1=$('#password').val();
+		var p2=$('#password2').val();
+		console.log(phone+" "+name+" "+p1+"  "+p2);
+		if(phone==""||name==""||p1==""||p2==""){
+			alert("请填写完整注册信息");
+			return ;
+		}
+
+		if(p1!=p2){
+			$('#password').val("");
+			$('#password2').val("");
+			alert('两次密码输入不一致');
+			return ;
+		}
+		$.ajax({
+			url:"/doRegist",
+			type:'post',
+			dataType: "json",
+            data: { phone:phone, name:name,password:p1 },
+			success:(result)=>{
+				
+				console.log(result);
+				if(result){
+					alert("注册成功");
+					location.href="/";
+				}
+				else{
+					alert("注册失败，请检查输入信息，账户可能已经被注册了！")
+				}
+			}
+		})
+  }
+</script>
+
+	</body>
+</html>
